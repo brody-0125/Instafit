@@ -7,12 +7,13 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { Upload, Download, Square, Smartphone, Monitor, ImagePlus, Check, Sparkles } from "lucide-react"
+import { Upload, Download, Square, Smartphone, Monitor, ImagePlus, Check, Sparkles, Undo2, Redo2 } from "lucide-react"
 import { TemplateSelector } from "./template-selector"
 import { BackgroundControls } from "./background-controls"
 import { ImageCanvas } from "./image-canvas"
 import { ImageThumbnailList } from "./image-thumbnail-list"
 import { useCanvasRenderer } from "@/hooks/use-canvas-renderer"
+import { useHistory } from "@/hooks/use-history"
 import { useI18n } from "@/lib/i18n/context"
 import type { ImageItem, TemplateType, BackgroundSettings } from "@/types/editor"
 import { DEFAULT_BACKGROUND_SETTINGS } from "@/types/editor"
@@ -46,6 +47,38 @@ export function ImageEditor() {
   const selectedImage = images.find((img) => img.id === selectedImageId) ?? null
   const currentTemplate = selectedImage?.template ?? "square"
   const currentBackgroundSettings = selectedImage?.backgroundSettings ?? DEFAULT_BACKGROUND_SETTINGS
+
+  const {
+    state: historyBackgroundSettings,
+    setState: setHistoryBackgroundSettings,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    clear: clearHistory,
+  } = useHistory<BackgroundSettings>({
+    initialState: DEFAULT_BACKGROUND_SETTINGS,
+    maxHistory: 20,
+  })
+
+  // Sync history state when selected image changes
+  const prevSelectedIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (selectedImageId !== prevSelectedIdRef.current) {
+      prevSelectedIdRef.current = selectedImageId
+      clearHistory()
+    }
+  }, [selectedImageId, clearHistory])
+
+  // Apply undo/redo state back to image
+  useEffect(() => {
+    if (!selectedImageId) return
+    setImages((prev) =>
+      prev.map((img) =>
+        img.id === selectedImageId ? { ...img, backgroundSettings: historyBackgroundSettings } : img,
+      ),
+    )
+  }, [historyBackgroundSettings, selectedImageId])
 
   const { exportToBlob } = useCanvasRenderer({
     template: INSTAGRAM_TEMPLATES[currentTemplate],
@@ -157,12 +190,9 @@ export function ImageEditor() {
   const handleBackgroundSettingsChange = useCallback(
     (settings: BackgroundSettings) => {
       if (!selectedImageId) return
-
-      setImages((prev) =>
-        prev.map((img) => (img.id === selectedImageId ? { ...img, backgroundSettings: settings } : img)),
-      )
+      setHistoryBackgroundSettings(settings)
     },
-    [selectedImageId],
+    [selectedImageId, setHistoryBackgroundSettings],
   )
 
   const handleDownload = useCallback(async () => {
@@ -396,7 +426,33 @@ export function ImageEditor() {
           <Card className="p-5 h-full">
             <div className="space-y-4 h-full flex flex-col">
               <div className="flex items-center justify-between">
-                <Label className="text-base font-semibold">{t.preview.title}</Label>
+                <div className="flex items-center gap-2">
+                  <Label className="text-base font-semibold">{t.preview.title}</Label>
+                  {selectedImage && (
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={undo}
+                        disabled={!canUndo}
+                        title={`${t.action.undo} (Ctrl+Z)`}
+                      >
+                        <Undo2 className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={redo}
+                        disabled={!canRedo}
+                        title={`${t.action.redo} (Ctrl+Shift+Z)`}
+                      >
+                        <Redo2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
                 {selectedImage && (
                   <Badge variant="secondary" className="font-mono text-xs">
                     {INSTAGRAM_TEMPLATES[currentTemplate].width} × {INSTAGRAM_TEMPLATES[currentTemplate].height}

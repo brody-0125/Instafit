@@ -55,6 +55,8 @@ export const translations = {
       downloading: "저장 중...",
       select: "선택",
       delete: "삭제",
+      undo: "실행 취소",
+      redo: "다시 실행",
     },
     toast: {
       uploadSuccess: "{count}개의 이미지가 업로드되었습니다",
@@ -115,6 +117,8 @@ export const translations = {
       downloading: "Downloading...",
       select: "Select",
       delete: "Delete",
+      undo: "Undo",
+      redo: "Redo",
     },
     toast: {
       uploadSuccess: "{count} image(s) uploaded",
@@ -175,6 +179,8 @@ export const translations = {
       downloading: "保存中...",
       select: "選択",
       delete: "削除",
+      undo: "元に戻す",
+      redo: "やり直す",
     },
     toast: {
       uploadSuccess: "{count}枚の画像がアップロードされました",
@@ -207,6 +213,6 @@ export interface Translations {
     blurDescription: string
   }
   preview: { title: string; empty: string; emptyDescription: string }
-  action: { download: string; downloading: string; select: string; delete: string }
+  action: { download: string; downloading: string; select: string; delete: string; undo: string; redo: string }
   toast: { uploadSuccess: string; downloadSuccess: string; downloadError: string }
 }
