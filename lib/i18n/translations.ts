@@ -56,10 +56,23 @@ export const translations = {
       select: "선택",
       delete: "삭제",
     },
+    mosaic: {
+      title: "모자이크 브러시",
+      enable: "모자이크 켜기",
+      disable: "모자이크 끄기",
+      reset: "초기화",
+      brushSize: "브러시 크기",
+      blockSize: "블록 크기",
+      small: "작게",
+      large: "크게",
+      fine: "세밀",
+      coarse: "거칠게",
+    },
     toast: {
       uploadSuccess: "{count}개의 이미지가 업로드되었습니다",
       downloadSuccess: "이미지가 저장되었습니다",
       downloadError: "이미지 저장에 실패했습니다",
+      mosaicReset: "모자이크가 초기화되었습니다",
     },
   },
   en: {
@@ -116,10 +129,23 @@ export const translations = {
       select: "Select",
       delete: "Delete",
     },
+    mosaic: {
+      title: "Mosaic Brush",
+      enable: "Enable Mosaic",
+      disable: "Disable Mosaic",
+      reset: "Reset",
+      brushSize: "Brush Size",
+      blockSize: "Block Size",
+      small: "Small",
+      large: "Large",
+      fine: "Fine",
+      coarse: "Coarse",
+    },
     toast: {
       uploadSuccess: "{count} image(s) uploaded",
       downloadSuccess: "Image saved successfully",
       downloadError: "Failed to save image",
+      mosaicReset: "Mosaic has been reset",
     },
   },
   ja: {
@@ -176,10 +202,23 @@ export const translations = {
       select: "選択",
       delete: "削除",
     },
+    mosaic: {
+      title: "モザイクブラシ",
+      enable: "モザイクを有効化",
+      disable: "モザイクを無効化",
+      reset: "リセット",
+      brushSize: "ブラシサイズ",
+      blockSize: "ブロックサイズ",
+      small: "小さく",
+      large: "大きく",
+      fine: "細かく",
+      coarse: "粗く",
+    },
     toast: {
       uploadSuccess: "{count}枚の画像がアップロードされました",
       downloadSuccess: "画像を保存しました",
       downloadError: "画像の保存に失敗しました",
+      mosaicReset: "モザイクがリセットされました",
     },
   },
 } as const
@@ -207,6 +246,18 @@ export interface Translations {
     blurDescription: string
   }
   preview: { title: string; empty: string; emptyDescription: string }
+  mosaic: {
+    title: string
+    enable: string
+    disable: string
+    reset: string
+    brushSize: string
+    blockSize: string
+    small: string
+    large: string
+    fine: string
+    coarse: string
+  }
   action: { download: string; downloading: string; select: string; delete: string }
-  toast: { uploadSuccess: string; downloadSuccess: string; downloadError: string }
+  toast: { uploadSuccess: string; downloadSuccess: string; downloadError: string; mosaicReset: string }
 }
