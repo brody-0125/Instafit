@@ -1,6 +1,5 @@
 // Image Processing Web Worker
 // Handles heavy image operations off the main thread
-// TODO: Separable blur 알고리즘 적용으로 성능 개선 (O(n²) → O(2n))
 // TODO: SIMD 또는 WebAssembly 활용하여 이미지 처리 속도 향상
 
 interface ProcessImageMessage {
@@ -71,39 +70,95 @@ function bilinearInterpolate(
   return dstData
 }
 
-// Box blur for background effect
+// Separable box blur: horizontal + vertical passes with sliding window
+// O(width * height * 2) instead of O(width * height * (2*radius+1)²)
 function boxBlur(imageData: ImageData, radius: number): ImageData {
   const { width, height, data } = imageData
+  const temp = new ImageData(width, height)
   const result = new ImageData(width, height)
-  const dst = result.data
 
-  const size = radius * 2 + 1
-  const area = size * size
-
+  // Horizontal pass (sliding window)
   for (let y = 0; y < height; y++) {
+    let r = 0, g = 0, b = 0, a = 0
+
+    // Initialize window for first pixel in row
+    for (let dx = 0; dx <= radius; dx++) {
+      const nx = Math.min(dx, width - 1)
+      const idx = (y * width + nx) * 4
+      r += data[idx]
+      g += data[idx + 1]
+      b += data[idx + 2]
+      a += data[idx + 3]
+    }
+    // Add clamped left side (all map to pixel 0)
+    const leftIdx = (y * width) * 4
+    r += data[leftIdx] * radius
+    g += data[leftIdx + 1] * radius
+    b += data[leftIdx + 2] * radius
+    a += data[leftIdx + 3] * radius
+
+    const size = radius * 2 + 1
+
     for (let x = 0; x < width; x++) {
-      let r = 0, g = 0, b = 0, a = 0
-      let count = 0
-
-      for (let dy = -radius; dy <= radius; dy++) {
-        for (let dx = -radius; dx <= radius; dx++) {
-          const nx = Math.min(Math.max(x + dx, 0), width - 1)
-          const ny = Math.min(Math.max(y + dy, 0), height - 1)
-          const idx = (ny * width + nx) * 4
-
-          r += data[idx]
-          g += data[idx + 1]
-          b += data[idx + 2]
-          a += data[idx + 3]
-          count++
-        }
-      }
-
       const dstIdx = (y * width + x) * 4
-      dst[dstIdx] = Math.round(r / count)
-      dst[dstIdx + 1] = Math.round(g / count)
-      dst[dstIdx + 2] = Math.round(b / count)
-      dst[dstIdx + 3] = Math.round(a / count)
+      temp.data[dstIdx] = Math.round(r / size)
+      temp.data[dstIdx + 1] = Math.round(g / size)
+      temp.data[dstIdx + 2] = Math.round(b / size)
+      temp.data[dstIdx + 3] = Math.round(a / size)
+
+      // Slide window: add right pixel, remove left pixel
+      const addX = Math.min(x + radius + 1, width - 1)
+      const remX = Math.max(x - radius, 0)
+      const addIdx = (y * width + addX) * 4
+      const remIdx = (y * width + remX) * 4
+
+      r += data[addIdx] - data[remIdx]
+      g += data[addIdx + 1] - data[remIdx + 1]
+      b += data[addIdx + 2] - data[remIdx + 2]
+      a += data[addIdx + 3] - data[remIdx + 3]
+    }
+  }
+
+  // Vertical pass (sliding window on temp result)
+  const tmpData = temp.data
+  for (let x = 0; x < width; x++) {
+    let r = 0, g = 0, b = 0, a = 0
+
+    // Initialize window for first pixel in column
+    for (let dy = 0; dy <= radius; dy++) {
+      const ny = Math.min(dy, height - 1)
+      const idx = (ny * width + x) * 4
+      r += tmpData[idx]
+      g += tmpData[idx + 1]
+      b += tmpData[idx + 2]
+      a += tmpData[idx + 3]
+    }
+    // Add clamped top side (all map to pixel 0)
+    const topIdx = x * 4
+    r += tmpData[topIdx] * radius
+    g += tmpData[topIdx + 1] * radius
+    b += tmpData[topIdx + 2] * radius
+    a += tmpData[topIdx + 3] * radius
+
+    const size = radius * 2 + 1
+
+    for (let y = 0; y < height; y++) {
+      const dstIdx = (y * width + x) * 4
+      result.data[dstIdx] = Math.round(r / size)
+      result.data[dstIdx + 1] = Math.round(g / size)
+      result.data[dstIdx + 2] = Math.round(b / size)
+      result.data[dstIdx + 3] = Math.round(a / size)
+
+      // Slide window: add bottom pixel, remove top pixel
+      const addY = Math.min(y + radius + 1, height - 1)
+      const remY = Math.max(y - radius, 0)
+      const addIdx = (addY * width + x) * 4
+      const remIdx = (remY * width + x) * 4
+
+      r += tmpData[addIdx] - tmpData[remIdx]
+      g += tmpData[addIdx + 1] - tmpData[remIdx + 1]
+      b += tmpData[addIdx + 2] - tmpData[remIdx + 2]
+      a += tmpData[addIdx + 3] - tmpData[remIdx + 3]
     }
   }
 
