@@ -1,6 +1,6 @@
 "use client"
 
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react"
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState, useCallback } from "react"
 import { useCanvasRenderer } from "@/hooks/use-canvas-renderer"
 import type { Template, BackgroundSettings } from "@/types/editor"
 
@@ -11,11 +11,14 @@ interface ImageCanvasProps {
 }
 
 const MAX_PREVIEW_WIDTH = 500
+const DEBOUNCE_MS = 150
 
 export const ImageCanvas = forwardRef<HTMLCanvasElement, ImageCanvasProps>(
   ({ image, template, backgroundSettings }, ref) => {
     const canvasRef = useRef<HTMLCanvasElement>(null)
     const [isRendering, setIsRendering] = useState(false)
+    const renderTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const lastRenderKeyRef = useRef<string>("")
 
     useImperativeHandle(ref, () => canvasRef.current!, [])
 
@@ -25,17 +28,43 @@ export const ImageCanvas = forwardRef<HTMLCanvasElement, ImageCanvasProps>(
       useHighResolution: true,
     })
 
+    const getRenderKey = useCallback(() => {
+      return JSON.stringify({
+        image,
+        tw: template.width,
+        th: template.height,
+        bt: backgroundSettings.type,
+        sc: backgroundSettings.solidColor,
+        bi: backgroundSettings.blurIntensity,
+        gc: backgroundSettings.gradientColors,
+        gd: backgroundSettings.gradientDirection,
+      })
+    }, [image, template, backgroundSettings])
+
     useEffect(() => {
       const canvas = canvasRef.current
       if (!canvas) return
 
+      const renderKey = getRenderKey()
+
+      // Skip if nothing changed
+      if (renderKey === lastRenderKeyRef.current) return
+
       let isCancelled = false
 
-      const render = async () => {
+      // Clear any pending debounced render
+      if (renderTimerRef.current) {
+        clearTimeout(renderTimerRef.current)
+      }
+
+      const executeRender = async () => {
+        if (isCancelled) return
+
         setIsRendering(true)
         try {
+          await renderToCanvas(canvas, image)
           if (!isCancelled) {
-            await renderToCanvas(canvas, image)
+            lastRenderKeyRef.current = renderKey
           }
         } catch (error) {
           console.error("[v0] Canvas rendering failed:", error)
@@ -46,12 +75,33 @@ export const ImageCanvas = forwardRef<HTMLCanvasElement, ImageCanvasProps>(
         }
       }
 
-      render()
+      // Debounce slider-driven changes (blur intensity, gradient direction)
+      const isSliderChange =
+        lastRenderKeyRef.current !== "" &&
+        image === JSON.parse(lastRenderKeyRef.current || "{}").image
+
+      if (isSliderChange) {
+        renderTimerRef.current = setTimeout(executeRender, DEBOUNCE_MS)
+      } else {
+        executeRender()
+      }
 
       return () => {
         isCancelled = true
+        if (renderTimerRef.current) {
+          clearTimeout(renderTimerRef.current)
+        }
       }
-    }, [image, template, backgroundSettings, renderToCanvas])
+    }, [image, template, backgroundSettings, renderToCanvas, getRenderKey])
+
+    // Cleanup timer on unmount
+    useEffect(() => {
+      return () => {
+        if (renderTimerRef.current) {
+          clearTimeout(renderTimerRef.current)
+        }
+      }
+    }, [])
 
     const displayWidth = Math.min(MAX_PREVIEW_WIDTH, template.width / 2)
     const displayHeight = displayWidth / template.ratio
