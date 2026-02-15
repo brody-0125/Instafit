@@ -7,9 +7,11 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { Upload, Download, DownloadCloud, Square, Smartphone, Monitor, ImagePlus, Check, Sparkles } from "lucide-react"
+import { Upload, Download, DownloadCloud, Square, Smartphone, Monitor, ImagePlus, Check, Sparkles, Paintbrush } from "lucide-react"
 import { TemplateSelector } from "./template-selector"
 import { BackgroundControls } from "./background-controls"
+import { MosaicBrushControls, DEFAULT_MOSAIC_SETTINGS } from "./mosaic-brush-controls"
+import type { MosaicBrushSettings } from "./mosaic-brush-controls"
 import { ImageCanvas } from "./image-canvas"
 import { ImageThumbnailList } from "./image-thumbnail-list"
 import { useCanvasRenderer } from "@/hooks/use-canvas-renderer"
@@ -35,6 +37,8 @@ export function ImageEditor() {
   const [isDragging, setIsDragging] = useState(false)
   const [isDownloading, setIsDownloading] = useState(false)
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null)
+  const [mosaicSettings, setMosaicSettings] = useState<MosaicBrushSettings>({ ...DEFAULT_MOSAIC_SETTINGS })
+  const [mosaicStrokes, setMosaicStrokes] = useState<Record<string, boolean>>({})
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -164,6 +168,24 @@ export function ImageEditor() {
     },
     [selectedImageId],
   )
+
+  const handleMosaicSettingsChange = useCallback(
+    (settings: MosaicBrushSettings) => {
+      setMosaicSettings(settings)
+    },
+    [],
+  )
+
+  const handleMosaicReset = useCallback(() => {
+    if (selectedImageId) {
+      setMosaicStrokes((prev) => {
+        const next = { ...prev }
+        delete next[selectedImageId]
+        return next
+      })
+      showToast(t.toast.mosaicReset, "info")
+    }
+  }, [selectedImageId, showToast, t])
 
   const handleDownload = useCallback(async () => {
     const canvas = canvasRef.current
@@ -482,6 +504,29 @@ export function ImageEditor() {
               <BackgroundControls
                 settings={currentBackgroundSettings}
                 onSettingsChange={handleBackgroundSettingsChange}
+                disabled={!hasImages}
+              />
+            </div>
+          </Card>
+
+          <Card className={cn("p-5 transition-opacity", !hasImages && "opacity-50 pointer-events-none")}>
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <div
+                  className={cn(
+                    "flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold",
+                    hasImages ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
+                  )}
+                >
+                  4
+                </div>
+                <Label className="text-base font-semibold">{t.mosaic.title}</Label>
+              </div>
+              <MosaicBrushControls
+                settings={mosaicSettings}
+                onSettingsChange={handleMosaicSettingsChange}
+                onReset={handleMosaicReset}
+                hasStrokes={!!selectedImageId && !!mosaicStrokes[selectedImageId]}
                 disabled={!hasImages}
               />
             </div>

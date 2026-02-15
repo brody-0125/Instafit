@@ -91,6 +91,31 @@ export function useImageWorker() {
     []
   )
 
+  const applyMosaic = useCallback(
+    async (
+      imageData: ImageData,
+      regions: Array<{ x: number; y: number; width: number; height: number }>,
+      blockSize: number
+    ): Promise<ImageData | null> => {
+      if (!workerRef.current) {
+        console.warn("[ImageWorker] Worker not available, using fallback")
+        return null
+      }
+
+      return new Promise((resolve) => {
+        pendingCallbacks.current.set("mosaicResult", (result) => {
+          resolve(result.imageData || null)
+        })
+
+        workerRef.current!.postMessage(
+          { type: "mosaic", imageData, regions, blockSize },
+          [imageData.data.buffer]
+        )
+      })
+    },
+    []
+  )
+
   const isAvailable = useCallback(() => {
     return workerRef.current !== null
   }, [])
@@ -98,6 +123,7 @@ export function useImageWorker() {
   return {
     downsampleImage,
     createBlurredBackground,
+    applyMosaic,
     isAvailable,
   }
 }
