@@ -52,6 +52,7 @@ export const translations = {
     },
     action: {
       download: "이미지 저장하기",
+      downloadAll: "모두 저장하기",
       downloading: "저장 중...",
       select: "선택",
       delete: "삭제",
@@ -60,6 +61,9 @@ export const translations = {
       uploadSuccess: "{count}개의 이미지가 업로드되었습니다",
       downloadSuccess: "이미지가 저장되었습니다",
       downloadError: "이미지 저장에 실패했습니다",
+      batchProgress: "{current}/{total} 처리 중...",
+      batchSuccess: "{count}개의 이미지가 저장되었습니다",
+      batchError: "{success}개 저장 완료, {failed}개 실패",
     },
   },
   en: {
@@ -112,6 +116,7 @@ export const translations = {
     },
     action: {
       download: "Download Image",
+      downloadAll: "Download All",
       downloading: "Downloading...",
       select: "Select",
       delete: "Delete",
@@ -120,6 +125,9 @@ export const translations = {
       uploadSuccess: "{count} image(s) uploaded",
       downloadSuccess: "Image saved successfully",
       downloadError: "Failed to save image",
+      batchProgress: "Processing {current}/{total}...",
+      batchSuccess: "{count} image(s) saved",
+      batchError: "{success} saved, {failed} failed",
     },
   },
   ja: {
@@ -172,6 +180,7 @@ export const translations = {
     },
     action: {
       download: "画像を保存",
+      downloadAll: "すべて保存",
       downloading: "保存中...",
       select: "選択",
       delete: "削除",
@@ -180,6 +189,9 @@ export const translations = {
       uploadSuccess: "{count}枚の画像がアップロードされました",
       downloadSuccess: "画像を保存しました",
       downloadError: "画像の保存に失敗しました",
+      batchProgress: "{current}/{total} 処理中...",
+      batchSuccess: "{count}枚の画像を保存しました",
+      batchError: "{success}枚保存完了、{failed}枚失敗",
     },
   },
 } as const
@@ -207,6 +219,6 @@ export interface Translations {
     blurDescription: string
   }
   preview: { title: string; empty: string; emptyDescription: string }
-  action: { download: string; downloading: string; select: string; delete: string }
-  toast: { uploadSuccess: string; downloadSuccess: string; downloadError: string }
+  action: { download: string; downloadAll: string; downloading: string; select: string; delete: string }
+  toast: { uploadSuccess: string; downloadSuccess: string; downloadError: string; batchProgress: string; batchSuccess: string; batchError: string }
 }

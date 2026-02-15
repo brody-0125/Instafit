@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { Upload, Download, Square, Smartphone, Monitor, ImagePlus, Check, Sparkles } from "lucide-react"
+import { Upload, Download, DownloadCloud, Square, Smartphone, Monitor, ImagePlus, Check, Sparkles } from "lucide-react"
 import { TemplateSelector } from "./template-selector"
 import { BackgroundControls } from "./background-controls"
 import { ImageCanvas } from "./image-canvas"
@@ -231,6 +231,126 @@ export function ImageEditor() {
     }
   }, [selectedImage, exportToBlob, showToast, t])
 
+  const handleBatchDownload = useCallback(async () => {
+    if (images.length === 0) return
+
+    setIsDownloading(true)
+    let success = 0
+    let failed = 0
+
+    for (let i = 0; i < images.length; i++) {
+      const img = images[i]
+      showToast(
+        t.toast.batchProgress
+          .replace("{current}", String(i + 1))
+          .replace("{total}", String(images.length)),
+        "info",
+      )
+
+      try {
+        const offscreen = document.createElement("canvas")
+        const tmpl = INSTAGRAM_TEMPLATES[img.template]
+        const offRenderer = document.createElement("canvas")
+        offRenderer.width = tmpl.width * 2
+        offRenderer.height = tmpl.height * 2
+        const offCtx = offRenderer.getContext("2d")
+        if (!offCtx) { failed++; continue }
+
+        // Render using a temporary canvas
+        const tempImg = new Image()
+        tempImg.crossOrigin = "anonymous"
+
+        await new Promise<void>((resolve, reject) => {
+          tempImg.onload = () => {
+            offCtx.imageSmoothingEnabled = true
+            offCtx.imageSmoothingQuality = "high"
+            const renderScale = offRenderer.width / tmpl.width
+            offCtx.scale(renderScale, renderScale)
+
+            // Draw background
+            const bg = img.backgroundSettings
+            if (bg.type === "solid") {
+              offCtx.fillStyle = bg.solidColor
+              offCtx.fillRect(0, 0, tmpl.width, tmpl.height)
+            } else if (bg.type === "gradient") {
+              const angle = (bg.gradientDirection * Math.PI) / 180
+              const x1 = tmpl.width / 2 - (Math.cos(angle) * tmpl.width) / 2
+              const y1 = tmpl.height / 2 - (Math.sin(angle) * tmpl.height) / 2
+              const x2 = tmpl.width / 2 + (Math.cos(angle) * tmpl.width) / 2
+              const y2 = tmpl.height / 2 + (Math.sin(angle) * tmpl.height) / 2
+              const gradient = offCtx.createLinearGradient(x1, y1, x2, y2)
+              gradient.addColorStop(0, bg.gradientColors[0])
+              gradient.addColorStop(1, bg.gradientColors[1])
+              offCtx.fillStyle = gradient
+              offCtx.fillRect(0, 0, tmpl.width, tmpl.height)
+            } else if (bg.type === "blur") {
+              offCtx.save()
+              offCtx.filter = `blur(${bg.blurIntensity}px)`
+              const bgScale = Math.max(tmpl.width / tempImg.width, tmpl.height / tempImg.height) * 1.1
+              const bgW = tempImg.width * bgScale
+              const bgH = tempImg.height * bgScale
+              offCtx.drawImage(tempImg, (tmpl.width - bgW) / 2, (tmpl.height - bgH) / 2, bgW, bgH)
+              offCtx.filter = "none"
+              offCtx.restore()
+            } else {
+              offCtx.fillStyle = "#000000"
+              offCtx.fillRect(0, 0, tmpl.width, tmpl.height)
+            }
+
+            // Draw image centered
+            const scale = Math.min(tmpl.width / tempImg.width, tmpl.height / tempImg.height)
+            const sw = tempImg.width * scale
+            const sh = tempImg.height * scale
+            offCtx.drawImage(tempImg, (tmpl.width - sw) / 2, (tmpl.height - sh) / 2, sw, sh)
+            resolve()
+          }
+          tempImg.onerror = reject
+          tempImg.src = img.url
+        })
+
+        const blob = await new Promise<Blob | null>((resolve) => {
+          offRenderer.toBlob((b) => resolve(b), "image/jpeg", 0.95)
+        })
+
+        if (blob) {
+          const baseName = img.fileName.replace(/\.[^/.]+$/, "")
+          const filename = `${baseName}-${img.template}.jpg`
+          const url = URL.createObjectURL(blob)
+          const link = document.createElement("a")
+          link.download = filename
+          link.href = url
+          link.style.display = "none"
+          document.body.appendChild(link)
+          link.click()
+          setTimeout(() => {
+            document.body.removeChild(link)
+            URL.revokeObjectURL(url)
+          }, 100)
+          success++
+        } else {
+          failed++
+        }
+      } catch {
+        failed++
+      }
+
+      // Yield to UI between downloads
+      await new Promise((r) => setTimeout(r, 200))
+    }
+
+    if (failed === 0) {
+      showToast(t.toast.batchSuccess.replace("{count}", String(success)), "success")
+    } else {
+      showToast(
+        t.toast.batchError
+          .replace("{success}", String(success))
+          .replace("{failed}", String(failed)),
+        "error",
+      )
+    }
+    setIsDownloading(false)
+  }, [images, showToast, t])
+
   const triggerFileInput = useCallback(() => {
     if (fileInputRef.current) {
       fileInputRef.current.click()
@@ -265,7 +385,6 @@ export function ImageEditor() {
         <StepIndicator step={3} currentStep={currentStep} label={t.step.download} isLast />
       </div>
 
-      {/* TODO: 일괄 다운로드 기능 추가 (ZIP 파일) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
         <div className="lg:col-span-1 space-y-4">
           <Card className="p-5">
@@ -368,28 +487,43 @@ export function ImageEditor() {
             </div>
           </Card>
 
-          <Button
-            onClick={handleDownload}
-            disabled={isDownloading || !selectedImage}
-            className={cn(
-              "w-full touch-manipulation min-h-[52px] text-base font-semibold transition-all select-none",
-              selectedImage && "bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70",
+          <div className="flex gap-2">
+            <Button
+              onClick={handleDownload}
+              disabled={isDownloading || !selectedImage}
+              className={cn(
+                "flex-1 touch-manipulation min-h-[52px] text-base font-semibold transition-all select-none",
+                selectedImage && "bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70",
+              )}
+              style={{ touchAction: "manipulation" }}
+              size="lg"
+            >
+              {isDownloading ? (
+                <>
+                  <Sparkles className="mr-2 h-5 w-5 animate-spin" />
+                  {t.action.downloading}
+                </>
+              ) : (
+                <>
+                  <Download className="mr-2 h-5 w-5" />
+                  {t.action.download}
+                </>
+              )}
+            </Button>
+            {images.length > 1 && (
+              <Button
+                onClick={handleBatchDownload}
+                disabled={isDownloading}
+                variant="outline"
+                className="touch-manipulation min-h-[52px] px-4"
+                style={{ touchAction: "manipulation" }}
+                size="lg"
+                title={t.action.downloadAll}
+              >
+                <DownloadCloud className="h-5 w-5" />
+              </Button>
             )}
-            style={{ touchAction: "manipulation" }}
-            size="lg"
-          >
-            {isDownloading ? (
-              <>
-                <Sparkles className="mr-2 h-5 w-5 animate-spin" />
-                {t.action.downloading}
-              </>
-            ) : (
-              <>
-                <Download className="mr-2 h-5 w-5" />
-                {t.action.download}
-              </>
-            )}
-          </Button>
+          </div>
         </div>
 
         <div className="lg:col-span-2">
