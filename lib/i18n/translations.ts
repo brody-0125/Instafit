@@ -52,16 +52,33 @@ export const translations = {
     },
     action: {
       download: "이미지 저장하기",
+      downloadAll: "모두 저장하기",
       downloading: "저장 중...",
       select: "선택",
       delete: "삭제",
       undo: "실행 취소",
       redo: "다시 실행",
     },
+    mosaic: {
+      title: "모자이크 브러시",
+      enable: "모자이크 켜기",
+      disable: "모자이크 끄기",
+      reset: "초기화",
+      brushSize: "브러시 크기",
+      blockSize: "블록 크기",
+      small: "작게",
+      large: "크게",
+      fine: "세밀",
+      coarse: "거칠게",
+    },
     toast: {
       uploadSuccess: "{count}개의 이미지가 업로드되었습니다",
       downloadSuccess: "이미지가 저장되었습니다",
       downloadError: "이미지 저장에 실패했습니다",
+      batchProgress: "{current}/{total} 처리 중...",
+      batchSuccess: "{count}개의 이미지가 저장되었습니다",
+      batchError: "{success}개 저장 완료, {failed}개 실패",
+      mosaicReset: "모자이크가 초기화되었습니다",
     },
   },
   en: {
@@ -114,16 +131,33 @@ export const translations = {
     },
     action: {
       download: "Download Image",
+      downloadAll: "Download All",
       downloading: "Downloading...",
       select: "Select",
       delete: "Delete",
       undo: "Undo",
       redo: "Redo",
     },
+    mosaic: {
+      title: "Mosaic Brush",
+      enable: "Enable Mosaic",
+      disable: "Disable Mosaic",
+      reset: "Reset",
+      brushSize: "Brush Size",
+      blockSize: "Block Size",
+      small: "Small",
+      large: "Large",
+      fine: "Fine",
+      coarse: "Coarse",
+    },
     toast: {
       uploadSuccess: "{count} image(s) uploaded",
       downloadSuccess: "Image saved successfully",
       downloadError: "Failed to save image",
+      batchProgress: "Processing {current}/{total}...",
+      batchSuccess: "{count} image(s) saved",
+      batchError: "{success} saved, {failed} failed",
+      mosaicReset: "Mosaic has been reset",
     },
   },
   ja: {
@@ -176,16 +210,33 @@ export const translations = {
     },
     action: {
       download: "画像を保存",
+      downloadAll: "すべて保存",
       downloading: "保存中...",
       select: "選択",
       delete: "削除",
       undo: "元に戻す",
       redo: "やり直す",
     },
+    mosaic: {
+      title: "モザイクブラシ",
+      enable: "モザイクを有効化",
+      disable: "モザイクを無効化",
+      reset: "リセット",
+      brushSize: "ブラシサイズ",
+      blockSize: "ブロックサイズ",
+      small: "小さく",
+      large: "大きく",
+      fine: "細かく",
+      coarse: "粗く",
+    },
     toast: {
       uploadSuccess: "{count}枚の画像がアップロードされました",
       downloadSuccess: "画像を保存しました",
       downloadError: "画像の保存に失敗しました",
+      batchProgress: "{current}/{total} 処理中...",
+      batchSuccess: "{count}枚の画像を保存しました",
+      batchError: "{success}枚保存完了、{failed}枚失敗",
+      mosaicReset: "モザイクがリセットされました",
     },
   },
 } as const
@@ -213,6 +264,18 @@ export interface Translations {
     blurDescription: string
   }
   preview: { title: string; empty: string; emptyDescription: string }
-  action: { download: string; downloading: string; select: string; delete: string; undo: string; redo: string }
-  toast: { uploadSuccess: string; downloadSuccess: string; downloadError: string }
+  mosaic: {
+    title: string
+    enable: string
+    disable: string
+    reset: string
+    brushSize: string
+    blockSize: string
+    small: string
+    large: string
+    fine: string
+    coarse: string
+  }
+  action: { download: string; downloadAll: string; downloading: string; select: string; delete: string; undo: string; redo: string }
+  toast: { uploadSuccess: string; downloadSuccess: string; downloadError: string; batchProgress: string; batchSuccess: string; batchError: string; mosaicReset: string }
 }
