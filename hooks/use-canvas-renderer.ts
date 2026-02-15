@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useRef, useEffect } from "react"
+import { useImageWorker } from "./use-image-worker"
 
 const OUTPUT_RESOLUTIONS = {
   standard: { multiplier: 1 },
@@ -29,9 +30,19 @@ interface UseCanvasRendererOptions {
   useHighResolution?: boolean
 }
 
+function imageToImageData(img: HTMLImageElement): ImageData {
+  const canvas = document.createElement("canvas")
+  canvas.width = img.width
+  canvas.height = img.height
+  const ctx = canvas.getContext("2d")!
+  ctx.drawImage(img, 0, 0)
+  return ctx.getImageData(0, 0, img.width, img.height)
+}
+
 export function useCanvasRenderer(options: UseCanvasRendererOptions) {
   const { template, backgroundSettings, useHighResolution = true } = options
   const imageObjectUrlRef = useRef<string | null>(null)
+  const { downsampleImage, createBlurredBackground, isAvailable } = useImageWorker()
 
   const cleanup = useCallback(() => {
     if (imageObjectUrlRef.current) {
@@ -44,7 +55,6 @@ export function useCanvasRenderer(options: UseCanvasRendererOptions) {
     return cleanup
   }, [cleanup])
 
-  // TODO: Web Worker로 이동하여 메인 스레드 블로킹 방지
   const downsampleLargeImage = useCallback(async (img: HTMLImageElement): Promise<HTMLImageElement> => {
     const { width, height } = img
     const maxDimension = Math.max(width, height)
@@ -53,6 +63,42 @@ export function useCanvasRenderer(options: UseCanvasRendererOptions) {
       return img
     }
 
+    // Try Worker-based downsampling first
+    if (isAvailable()) {
+      const srcData = imageToImageData(img)
+      const result = await downsampleImage(srcData, MAX_INPUT_DIMENSION)
+      if (result) {
+        const offscreen = document.createElement("canvas")
+        offscreen.width = result.width
+        offscreen.height = result.height
+        const offCtx = offscreen.getContext("2d")!
+        offCtx.putImageData(result, 0, 0)
+
+        return new Promise((resolve) => {
+          const downsampledImg = new Image()
+          downsampledImg.onload = () => {
+            if (imageObjectUrlRef.current) {
+              URL.revokeObjectURL(imageObjectUrlRef.current)
+            }
+            resolve(downsampledImg)
+          }
+          offscreen.toBlob(
+            (blob) => {
+              if (blob) {
+                imageObjectUrlRef.current = URL.createObjectURL(blob)
+                downsampledImg.src = imageObjectUrlRef.current
+              } else {
+                resolve(img)
+              }
+            },
+            "image/jpeg",
+            0.95,
+          )
+        })
+      }
+    }
+
+    // Fallback: main thread downsampling
     const scale = MAX_INPUT_DIMENSION / maxDimension
     const newWidth = Math.floor(width * scale)
     const newHeight = Math.floor(height * scale)
@@ -89,7 +135,7 @@ export function useCanvasRenderer(options: UseCanvasRendererOptions) {
         0.95,
       )
     })
-  }, [])
+  }, [downsampleImage, isAvailable])
 
   const calculateScaleFactor = useCallback(
     (imgWidth: number, imgHeight: number, canvasWidth: number, canvasHeight: number): number => {
@@ -116,10 +162,38 @@ export function useCanvasRenderer(options: UseCanvasRendererOptions) {
     [],
   )
 
-  // TODO: 블러 처리 시 Web Worker 활용하여 성능 개선
+  const drawBlurBackground = useCallback(
+    async (ctx: CanvasRenderingContext2D, width: number, height: number, img: HTMLImageElement) => {
+      const { blurIntensity } = backgroundSettings
+
+      // Try Worker-based blur
+      if (isAvailable()) {
+        const srcData = imageToImageData(img)
+        const result = await createBlurredBackground(srcData, width, height, blurIntensity)
+        if (result) {
+          ctx.putImageData(result, 0, 0)
+          return
+        }
+      }
+
+      // Fallback: CSS filter blur on main thread
+      ctx.save()
+      ctx.filter = `blur(${blurIntensity}px)`
+      const bgScale = Math.max(width / img.width, height / img.height) * 1.1
+      const bgWidth = img.width * bgScale
+      const bgHeight = img.height * bgScale
+      const bgX = (width - bgWidth) / 2
+      const bgY = (height - bgHeight) / 2
+      ctx.drawImage(img, bgX, bgY, bgWidth, bgHeight)
+      ctx.filter = "none"
+      ctx.restore()
+    },
+    [backgroundSettings, createBlurredBackground, isAvailable],
+  )
+
   const drawBackground = useCallback(
-    (ctx: CanvasRenderingContext2D, width: number, height: number, img?: HTMLImageElement) => {
-      const { type, solidColor, blurIntensity, gradientColors, gradientDirection } = backgroundSettings
+    (ctx: CanvasRenderingContext2D, width: number, height: number) => {
+      const { type, solidColor, gradientColors, gradientDirection } = backgroundSettings
 
       ctx.save()
 
@@ -139,15 +213,6 @@ export function useCanvasRenderer(options: UseCanvasRendererOptions) {
 
         ctx.fillStyle = gradient
         ctx.fillRect(0, 0, width, height)
-      } else if (type === "blur" && img) {
-        ctx.filter = `blur(${blurIntensity}px)`
-        const bgScale = Math.max(width / img.width, height / img.height) * 1.1
-        const bgWidth = img.width * bgScale
-        const bgHeight = img.height * bgScale
-        const bgX = (width - bgWidth) / 2
-        const bgY = (height - bgHeight) / 2
-        ctx.drawImage(img, bgX, bgY, bgWidth, bgHeight)
-        ctx.filter = "none"
       } else {
         ctx.fillStyle = "#000000"
         ctx.fillRect(0, 0, width, height)
@@ -191,7 +256,12 @@ export function useCanvasRenderer(options: UseCanvasRendererOptions) {
         img.onload = async () => {
           try {
             const processedImg = await downsampleLargeImage(img)
-            drawBackground(ctx, logicalWidth, logicalHeight, processedImg)
+
+            if (backgroundSettings.type === "blur") {
+              await drawBlurBackground(ctx, logicalWidth, logicalHeight, processedImg)
+            } else {
+              drawBackground(ctx, logicalWidth, logicalHeight)
+            }
 
             const scale = calculateScaleFactor(processedImg.width, processedImg.height, logicalWidth, logicalHeight)
             const { x, y } = calculateCenterPosition(
@@ -212,7 +282,7 @@ export function useCanvasRenderer(options: UseCanvasRendererOptions) {
         img.src = imageSrc
       })
     },
-    [template, useHighResolution, drawBackground, downsampleLargeImage, calculateScaleFactor, calculateCenterPosition],
+    [template, useHighResolution, backgroundSettings.type, drawBackground, drawBlurBackground, downsampleLargeImage, calculateScaleFactor, calculateCenterPosition],
   )
 
   // TODO: PNG/WebP 포맷 지원 추가
