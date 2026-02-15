@@ -23,7 +23,14 @@ interface CreateBlurredBackgroundMessage {
   blurIntensity: number
 }
 
-type WorkerMessage = ProcessImageMessage | DownsampleMessage | CreateBlurredBackgroundMessage
+interface MosaicMessage {
+  type: "mosaic"
+  imageData: ImageData
+  regions: Array<{ x: number; y: number; width: number; height: number }>
+  blockSize: number
+}
+
+type WorkerMessage = ProcessImageMessage | DownsampleMessage | CreateBlurredBackgroundMessage | MosaicMessage
 
 // Bilinear interpolation for high-quality downsampling
 function bilinearInterpolate(
@@ -233,6 +240,69 @@ function createBlurredBackground(
   return result
 }
 
+// Apply mosaic (pixelation) to specified regions
+function applyMosaic(
+  imageData: ImageData,
+  regions: Array<{ x: number; y: number; width: number; height: number }>,
+  blockSize: number
+): ImageData {
+  const result = new ImageData(
+    new Uint8ClampedArray(imageData.data),
+    imageData.width,
+    imageData.height
+  )
+  const { width, height } = result
+  const data = result.data
+
+  for (const region of regions) {
+    const startX = Math.max(0, Math.floor(region.x))
+    const startY = Math.max(0, Math.floor(region.y))
+    const endX = Math.min(width, Math.ceil(region.x + region.width))
+    const endY = Math.min(height, Math.ceil(region.y + region.height))
+
+    for (let by = startY; by < endY; by += blockSize) {
+      for (let bx = startX; bx < endX; bx += blockSize) {
+        const blockEndX = Math.min(bx + blockSize, endX)
+        const blockEndY = Math.min(by + blockSize, endY)
+        const blockW = blockEndX - bx
+        const blockH = blockEndY - by
+        const count = blockW * blockH
+
+        let r = 0, g = 0, b = 0, a = 0
+
+        // Average color in block
+        for (let py = by; py < blockEndY; py++) {
+          for (let px = bx; px < blockEndX; px++) {
+            const idx = (py * width + px) * 4
+            r += data[idx]
+            g += data[idx + 1]
+            b += data[idx + 2]
+            a += data[idx + 3]
+          }
+        }
+
+        r = Math.round(r / count)
+        g = Math.round(g / count)
+        b = Math.round(b / count)
+        a = Math.round(a / count)
+
+        // Fill block with average color
+        for (let py = by; py < blockEndY; py++) {
+          for (let px = bx; px < blockEndX; px++) {
+            const idx = (py * width + px) * 4
+            data[idx] = r
+            data[idx + 1] = g
+            data[idx + 2] = b
+            data[idx + 3] = a
+          }
+        }
+      }
+    }
+  }
+
+  return result
+}
+
 // Web Worker context
 const ctx = self as unknown as Worker
 
@@ -258,6 +328,16 @@ ctx.onmessage = (event: MessageEvent<WorkerMessage>) => {
         const result = createBlurredBackground(imageData, canvasWidth, canvasHeight, blurIntensity)
         ctx.postMessage(
           { type: "blurredBackgroundResult", imageData: result },
+          [result.data.buffer]
+        )
+        break
+      }
+
+      case "mosaic": {
+        const { imageData, regions, blockSize } = event.data as MosaicMessage
+        const result = applyMosaic(imageData, regions, blockSize)
+        ctx.postMessage(
+          { type: "mosaicResult", imageData: result },
           [result.data.buffer]
         )
         break
