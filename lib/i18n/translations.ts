@@ -56,6 +56,8 @@ export const translations = {
       downloading: "저장 중...",
       select: "선택",
       delete: "삭제",
+      undo: "실행 취소",
+      redo: "다시 실행",
     },
     mosaic: {
       title: "모자이크 브러시",
@@ -133,6 +135,8 @@ export const translations = {
       downloading: "Downloading...",
       select: "Select",
       delete: "Delete",
+      undo: "Undo",
+      redo: "Redo",
     },
     mosaic: {
       title: "Mosaic Brush",
@@ -210,6 +214,8 @@ export const translations = {
       downloading: "保存中...",
       select: "選択",
       delete: "削除",
+      undo: "元に戻す",
+      redo: "やり直す",
     },
     mosaic: {
       title: "モザイクブラシ",
@@ -270,6 +276,6 @@ export interface Translations {
     fine: string
     coarse: string
   }
-  action: { download: string; downloadAll: string; downloading: string; select: string; delete: string }
+  action: { download: string; downloadAll: string; downloading: string; select: string; delete: string; undo: string; redo: string }
   toast: { uploadSuccess: string; downloadSuccess: string; downloadError: string; batchProgress: string; batchSuccess: string; batchError: string; mosaicReset: string }
 }
